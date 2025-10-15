@@ -1,47 +1,56 @@
-import React, { useRef } from 'react';
-import { categories } from '../../assets/assets';
-import './ExploreMenu.css';
+import React, { useRef } from "react";
+import { categories } from "../../assets/assets";
+import "./ExploreMenu.css";
 
-const ExploreMenu = ({category, setCategory}) => {
-
+const ExploreMenu = ({ category, setCategory }) => {
   const menuRef = useRef(null);
+
   const scrollLeft = () => {
-    if (menuRef.current) {
-      menuRef.current.scrollBy({left: -200, behavior: 'smooth'});
-    }
+    menuRef.current?.scrollBy({ left: -250, behavior: "smooth" });
   };
 
   const scrollRight = () => {
-    if (menuRef.current) {
-      menuRef.current.scrollBy({left: 200, behavior: 'smooth'});
-    }
+    menuRef.current?.scrollBy({ left: 250, behavior: "smooth" });
   };
 
   return (
-    <div className="explore-menu position-relative">
-      <h1 className="d-flex align-items-center justify-content-between">
-        Explore Our Menu
-        <div className="d-flex">
-        <i className='bi bi-arrow-left-circle scroll-icon' onClick={scrollLeft}></i>
-        <i className='bi bi-arrow-right-circle scroll-icon' onClick={scrollRight}></i>
+    <div className="explore-menu">
+      <div className="menu-header">
+        <h1>Explore Our Menu</h1>
+        <div className="scroll-buttons">
+          <button className="scroll-btn" onClick={scrollLeft}>
+            <i className="bi bi-arrow-left"></i>
+          </button>
+          <button className="scroll-btn" onClick={scrollRight}>
+            <i className="bi bi-arrow-right"></i>
+          </button>
+        </div>
       </div>
-      </h1>
-      <p>Explore curated lists of dishes from top categories</p>
-      <div className="d-flex justify-content-between gap-4 overflow-auto explore-menu-list" ref={menuRef}>
-        {
-          categories.map((item, index) => {
-            return (
-              <div key={index} className="text-center explore-menu-list-item" onClick={() => setCategory(prev => prev === item.category ? 'All': item.category)}>
-                <img src={item.icon} alt="" className={item.category === category ? 'rounded-circle active': 'rounded-circle'} height={128} width={128}/>
-                <p className='mt-2 fw-bold'>{item.category}</p>
-              </div>
-            )
-          })
-        }
+
+      <p className="menu-subtitle">Discover delicious dishes by category</p>
+
+      <div className="explore-menu-list" ref={menuRef}>
+        {categories.map((item, index) => (
+          <div
+            key={index}
+            className={`explore-menu-item ${
+              category === item.category ? "active" : ""
+            }`}
+            onClick={() =>
+              setCategory((prev) =>
+                prev === item.category ? "All" : item.category
+              )
+            }
+          >
+            <img src={item.icon} alt={item.category} />
+            <p>{item.category}</p>
+          </div>
+        ))}
       </div>
+
       <hr />
     </div>
-  )
-}
+  );
+};
 
 export default ExploreMenu;

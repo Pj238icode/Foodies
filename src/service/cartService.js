@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/cart";
+const API_URL = " https://full-stack-food-delivery-app-3m3f.onrender.com/api/cart";
 
 export const addToCart = async (foodId, token) => {
     try {
@@ -36,3 +36,16 @@ export const getCartData = async (token) => {
         console.error('Error while fetching the cart data', error);
     }
 }
+
+export const clearCartItems = async (token, setQuantities) => {
+    try {
+        await axios.delete(API_URL, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        setQuantities({});
+    } catch (error) {
+        console.error('Error while clearing the cart', error);
+        throw error;
+    }
+}
+

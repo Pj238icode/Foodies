@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { useContext } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { StoreContext } from "../../context/StoreContext";
-import axios from "axios";
+import { fetchUserOrders } from "../../service/orderService";
 import { assets } from "../../assets/assets";
 import "./MyOrders.css";
 
@@ -10,10 +9,8 @@ const MyOrders = () => {
   const [data, setData] = useState([]);
 
   const fetchOrders = async () => {
-    const response = await axios.get("http://localhost:8080/api/orders", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setData(response.data);
+    const response = await fetchUserOrders(token);
+    setData(response);
   };
 
   useEffect(() => {
@@ -23,51 +20,50 @@ const MyOrders = () => {
   }, [token]);
 
   return (
-    <div className="container">
-      <div className="py-5 row justify-content-center">
-        <div className="col-11 card">
-          <table className="table table-responsive">
-            <tbody>
-              {data.map((order, index) => {
-                return (
-                  <tr key={index}>
-                    <td>
-                      <img
-                        src={assets.delivery}
-                        alt=""
-                        height={48}
-                        width={48}
-                      />
-                    </td>
-                    <td>
-                      {order.orderedItems.map((item, index) => {
-                        if (index === order.orderedItems.length - 1) {
-                          return item.name + " x " + item.quantity;
-                        } else {
-                          return item.name + " x " + item.quantity + ", ";
-                        }
-                      })}
-                    </td>
-                    <td>&#x20B9;{order.amount.toFixed(2)}</td>
-                    <td>Items: {order.orderedItems.length}</td>
-                    <td className="fw-bold text-capitalize">
-                      &#x25cf;{order.orderStatus}
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-sm btn-warning"
-                        onClick={fetchOrders}
-                      >
-                        <i className="bi bi-arrow-clockwise"></i>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+    <div className="my-orders-container">
+      <h2 className="text-center mb-4">📦 My Orders</h2>
+
+      {data.length === 0 ? (
+        <p className="no-orders">No orders yet. Start ordering delicious food! 🍔</p>
+      ) : (
+        <div className="orders-wrapper">
+          {data.map((order, index) => (
+            <div key={index} className="order-card">
+              <div className="order-left">
+                <img src={assets.delivery} alt="" className="delivery-icon" />
+                <div>
+                  <h5>Order #{index + 1}</h5>
+                  <p className="order-items">
+                    {order.orderedItems.map((item, idx) =>
+                      idx === order.orderedItems.length - 1
+                        ? `${item.name} x${item.quantity}`
+                        : `${item.name} x${item.quantity}, `
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="order-right">
+                <p className="order-price">₹{order.amount.toFixed(2)}</p>
+                <span
+                  className={`status-badge ${
+                    order.orderStatus === "delivered"
+                      ? "status-delivered"
+                      : order.orderStatus === "processing"
+                      ? "status-processing"
+                      : "status-pending"
+                  }`}
+                >
+                  ● {order.orderStatus}
+                </span>
+                <button className="refresh-btn" onClick={fetchOrders}>
+                  ⟳
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 };

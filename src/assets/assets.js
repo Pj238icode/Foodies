@@ -1,4 +1,4 @@
-import logo from './logo.png';
+import logo from './logo.jpg';
 import cart from './cart.png';
 
 import biryani from './biryani.png';
@@ -11,6 +11,7 @@ import salad from './salad.png';
 
 import profile from './profile.png';
 import delivery from './delivery.png';
+import momos from './momos.jpeg';
 
 export const assets = {
     logo,
@@ -47,5 +48,10 @@ export const categories = [
     {
         category: 'Salad',
         icon: salad
+    },
+    {
+        category:'Momos',
+        icon:momos
+
     }
 ];

@@ -3,15 +3,14 @@ import "./PlaceOrder.css";
 import { assets } from "../../assets/assets";
 import { StoreContext } from "../../context/StoreContext";
 import { calculateCartTotals } from "../../util/cartUtils";
-import axios from "axios";
 import { toast } from "react-toastify";
 import { RAZORPAY_KEY } from "../../util/contants";
 import { useNavigate } from "react-router-dom";
-//import Razorpay from "razorpay";
+import { createOrder, deleteOrder, verifyPayment } from "../../service/orderService";
+import { clearCartItems } from "../../service/cartService";
 
 const PlaceOrder = () => {
-  const { foodList, quantities, setQuantities, token } =
-    useContext(StoreContext);
+  const { foodList, quantities, setQuantities, token } = useContext(StoreContext);
   const navigate = useNavigate();
 
   const [data, setData] = useState({
@@ -26,13 +25,15 @@ const PlaceOrder = () => {
   });
 
   const onChangeHandler = (event) => {
-    const name = event.target.name;
-    const value = event.target.value;
+    const { name, value } = event.target;
     setData((data) => ({ ...data, [name]: value }));
   };
 
-  const onSubmitHandler = async (event) => {
-    event.preventDefault();
+  const cartItems = foodList.filter((food) => quantities[food.id] > 0);
+  const { subtotal, shipping, tax, total } = calculateCartTotals(cartItems, quantities);
+
+  const onSubmitHandler = async (e) => {
+    e.preventDefault();
     const orderData = {
       userAddress: `${data.firstName} ${data.lastName}, ${data.address}, ${data.city}, ${data.state}, ${data.zip}`,
       phoneNumber: data.phoneNumber,
@@ -51,312 +52,103 @@ const PlaceOrder = () => {
     };
 
     try {
-      const response = await axios.post(
-        "http://localhost:8080/api/orders/create",
-        orderData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.status === 201 && response.data.razorpayOrderId) {
-        // initiate the payment
-        initiateRazorpayPayment(response.data);
-      } else {
-        toast.error("Unable to place order. Please try again.");
-      }
+      const response = await createOrder(orderData, token);
+      if (response.razorpayOrderId) initiateRazorpayPayment(response);
+      else toast.error("Unable to place order");
     } catch (error) {
-      toast.error("Unable to place order. Please try again.");
+      toast.error("Error placing order.");
     }
   };
 
   const initiateRazorpayPayment = (order) => {
     const options = {
       key: RAZORPAY_KEY,
-      amount: order.amount, //Convert to paise
+      amount: order.amount,
       currency: "INR",
       name: "Food Land",
-      description: "Food order payment",
+      description: "Food Order Payment",
       order_id: order.razorpayOrderId,
-      handler: async function (razorpayResponse) {
-        await verifyPayment(razorpayResponse);
-      },
+      handler: verifyPaymentHandler,
       prefill: {
         name: `${data.firstName} ${data.lastName}`,
         email: data.email,
         contact: data.phoneNumber,
       },
-      theme: { color: "#3399cc" },
-      modal: {
-        ondismiss: async function () {
-          toast.error("Payment cancelled.");
-          await deleteOrder(order.id);
-        },
-      },
+      theme: { color: "#ff6600" },
+      modal: { ondismiss: deleteOrderHandler },
     };
-    const razorpay = new window.Razorpay(options);
-    razorpay.open();
+    const razor = new window.Razorpay(options);
+    razor.open();
   };
 
-  const verifyPayment = async (razorpayResponse) => {
-    const paymentData = {
-      razorpay_payment_id: razorpayResponse.razorpay_payment_id,
-      razorpay_order_id: razorpayResponse.razorpay_order_id,
-      razorpay_signature: razorpayResponse.razorpay_signature,
+  const verifyPaymentHandler = async (paymentResponse) => {
+    const payload = {
+      razorpay_payment_id: paymentResponse.razorpay_payment_id,
+      razorpay_order_id: paymentResponse.razorpay_order_id,
+      razorpay_signature: paymentResponse.razorpay_signature,
     };
     try {
-      const response = await axios.post(
-        "http://localhost:8080/api/orders/verify",
-        paymentData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (response.status === 200) {
-        toast.success("Payment successful.");
-        await clearCart();
+      const success = await verifyPayment(payload, token);
+      if (success) {
+        toast.success("Payment successful!");
+        await clearCartItems(token, setQuantities);
         navigate("/myorders");
-      } else {
-        toast.error("Payment failed. Please try again.");
-        navigate("/");
-      }
-    } catch (error) {
-      toast.error("Payment failed. Please try again.");
+      } else toast.error("Payment failed!");
+    } catch {
+      toast.error("Payment verification failed.");
     }
   };
 
-  const deleteOrder = async (orderId) => {
+  const deleteOrderHandler = async (orderId) => {
     try {
-      await axios.delete("http://localhost:8080/api/orders/" + orderId, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch (error) {
-      toast.error("Something went wrong. Contact support.");
+      await deleteOrder(orderId, token);
+    } catch {
+      toast.error("Couldn't cancel the order.");
     }
   };
 
-  const clearCart = async () => {
-    try {
-      await axios.delete("http://localhost:8080/api/cart", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setQuantities({});
-    } catch (error) {
-      toast.error("Error while clearing the cart.");
-    }
-  };
-
-  //cart items
-  const cartItems = foodList.filter((food) => quantities[food.id] > 0);
-
-  //calcualtiong
-  const { subtotal, shipping, tax, total } = calculateCartTotals(
-    cartItems,
-    quantities
-  );
   return (
-    <div className="container mt-4">
-      <main>
-        <div className="py-5 text-center">
-          <img
-            className="d-block mx-auto"
-            src={assets.logo}
-            alt=""
-            width="98"
-            height="98"
-          />
-        </div>
-        <div className="row g-5">
-          <div className="col-md-5 col-lg-4 order-md-last">
-            <h4 className="d-flex justify-content-between align-items-center mb-3">
-              <span className="text-primary">Your cart</span>
-              <span className="badge bg-primary rounded-pill">
-                {cartItems.length}
-              </span>
-            </h4>
-            <ul className="list-group mb-3">
-              {cartItems.map((item) => (
-                <li
-                  key={item.id}
-                  className="list-group-item d-flex justify-content-between lh-sm"
-                >
-                  <div>
-                    <h6 className="my-0">{item.name}</h6>
-                    <small className="text-body-secondary">
-                      Qty: {quantities[item.id]}
-                    </small>
-                  </div>
-                  <span className="text-body-secondary">
-                    &#8377;{item.price * quantities[item.id]}
-                  </span>
-                </li>
-              ))}
-              <li className="list-group-item d-flex justify-content-between">
-                <div>
-                  <span>Shipping</span>
-                </div>
-                <span className="text-body-secondary">
-                  &#8377;{subtotal === 0 ? 0.0 : shipping.toFixed(2)}
-                </span>
-              </li>
-              <li className="list-group-item d-flex justify-content-between">
-                <div>
-                  <span>Tax (10%)</span>
-                </div>
-                <span className="text-body-secondary">
-                  &#8377;{tax.toFixed(2)}
-                </span>
-              </li>
-
-              <li className="list-group-item d-flex justify-content-between">
-                <span>Total (INR)</span>
-                <strong>&#8377;{total.toFixed(2)}</strong>
-              </li>
-            </ul>
+    <div className="placeorder-wrapper">
+      <div className="logo-center">
+        <img src={assets.logo} alt="Logo" />
+      </div>
+      <div className="checkout-container">
+        {/* Billing Form */}
+        <form className="billing-form" onSubmit={onSubmitHandler}>
+          <h2>Billing Details</h2>
+          <div className="form-group">
+            <input name="firstName" placeholder="First Name" required onChange={onChangeHandler} />
+            <input name="lastName" placeholder="Last Name" required onChange={onChangeHandler} />
           </div>
-          <div className="col-md-7 col-lg-8">
-            <h4 className="mb-3">Billing address</h4>
-            <form className="needs-validation" onSubmit={onSubmitHandler}>
-              <div className="row g-3">
-                <div className="col-sm-6">
-                  <label htmlFor="firstName" className="form-label">
-                    First name
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    id="firstName"
-                    placeholder="Jhon"
-                    required
-                    name="firstName"
-                    onChange={onChangeHandler}
-                    value={data.firstName}
-                  />
-                </div>
-
-                <div className="col-sm-6">
-                  <label htmlFor="lastName" className="form-label">
-                    Last name
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    id="lastName"
-                    placeholder="Doe"
-                    value={data.lastName}
-                    onChange={onChangeHandler}
-                    name="lastName"
-                    required
-                  />
-                </div>
-
-                <div className="col-12">
-                  <label htmlFor="email" className="form-label">
-                    Email
-                  </label>
-                  <div className="input-group has-validation">
-                    <span className="input-group-text">@</span>
-                    <input
-                      type="email"
-                      className="form-control"
-                      id="email"
-                      placeholder="Email"
-                      required
-                      name="email"
-                      onChange={onChangeHandler}
-                      value={data.email}
-                    />
-                  </div>
-                </div>
-                <div className="col-12">
-                  <label htmlFor="phone" className="form-label">
-                    Phone Number
-                  </label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    id="phone"
-                    placeholder="9876543210"
-                    required
-                    value={data.phoneNumber}
-                    name="phoneNumber"
-                    onChange={onChangeHandler}
-                  />
-                </div>
-                <div className="col-12">
-                  <label htmlFor="address" className="form-label">
-                    Address
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    id="address"
-                    placeholder="1234 Main St"
-                    required
-                    value={data.address}
-                    name="address"
-                    onChange={onChangeHandler}
-                  />
-                </div>
-                <div className="col-md-5">
-                  <label htmlFor="state" className="form-label">
-                    State
-                  </label>
-                  <select
-                    className="form-select"
-                    id="state"
-                    required
-                    name="state"
-                    value={data.state}
-                    onChange={onChangeHandler}
-                  >
-                    <option value="">Choose...</option>
-                    <option>Karnataka</option>
-                  </select>
-                </div>
-
-                <div className="col-md-4">
-                  <label htmlFor="city" className="form-label">
-                    City
-                  </label>
-                  <select
-                    className="form-select"
-                    id="city"
-                    required
-                    name="city"
-                    value={data.city}
-                    onChange={onChangeHandler}
-                  >
-                    <option value="">Choose...</option>
-                    <option>Banglore</option>
-                  </select>
-                </div>
-
-                <div className="col-md-3">
-                  <label htmlFor="zip" className="form-label">
-                    Zip
-                  </label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    id="zip"
-                    placeholder="98745"
-                    required
-                    name="zip"
-                    value={data.zip}
-                    onChange={onChangeHandler}
-                  />
-                </div>
-              </div>
-
-              <hr className="my-4" />
-
-              <button
-                className="w-100 btn btn-primary btn-lg"
-                type="submit"
-                disabled={cartItems.length === 0}
-              >
-                Continue to checkout
-              </button>
-            </form>
+          <input name="email" type="email" placeholder="Email" required onChange={onChangeHandler} />
+          <input name="phoneNumber" placeholder="Mobile Number" required onChange={onChangeHandler} />
+          <input name="address" placeholder="Address" required onChange={onChangeHandler} />
+          <div className="form-group">
+            <input name="state" placeholder="State" required onChange={onChangeHandler} />
+            <input name="city" placeholder="City" required onChange={onChangeHandler} />
+            <input name="zip" placeholder="Zip Code" required onChange={onChangeHandler} />
           </div>
+          <button className="checkout-btn" disabled={cartItems.length === 0}>
+            Pay ₹{total.toFixed(2)} Securely
+          </button>
+        </form>
+
+        {/* Cart Summary */}
+        <div className="order-summary">
+          <h2>Order Summary</h2>
+          {cartItems.map((item) => (
+            <div className="summary-item" key={item.id}>
+              <span>{item.name} × {quantities[item.id]}</span>
+              <span>₹{item.price * quantities[item.id]}</span>
+            </div>
+          ))}
+          <hr />
+          <div className="summary-item"><span>Subtotal</span><span>₹{subtotal}</span></div>
+          <div className="summary-item"><span>Shipping</span><span>₹{shipping.toFixed(2)}</span></div>
+          <div className="summary-item"><span>Tax</span><span>₹{tax.toFixed(2)}</span></div>
+          <div className="summary-total"><b>Total</b><b>₹{total.toFixed(2)}</b></div>
         </div>
-      </main>
+      </div>
     </div>
   );
 };

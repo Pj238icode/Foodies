@@ -1,9 +1,42 @@
-.login-container {
-    background-image: url("../../assets/login.jpeg");
+.login-page {
+    background-image: url("../../assets/login.jpg");
+    display: flex;
+    justify-content: center;
+
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     height: 100vh;
     align-items: center;
     justify-content: center;
+}
+
+.login-wrapper {
+    width: 100%;
+    max-width: 420px;
+}
+
+.custom-input {
+    border-radius: 10px;
+    border: 1px solid #ced4da;
+}
+
+.custom-input:focus {
+    border-color: #ff5e62;
+    box-shadow: 0 0 5px rgba(255, 94, 98, 0.5);
+}
+
+.login-btn {
+    border-radius: 30px;
+    font-size: 1rem;
+    transition: 0.3s ease-in-out;
+}
+
+.login-btn:hover {
+    transform: translateY(-2px);
+    background-color: #e14d56;
+}
+
+.card {
+    border-radius: 15px;
 }
